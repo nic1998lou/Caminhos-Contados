@@ -19,32 +19,42 @@ const MarqueeText: React.FC<MarqueeTextProps> = ({
 
   useLayoutEffect(() => {
     const checkOverflow = () => {
-      if (containerRef.current && textRef.current) {
-        const containerWidth = containerRef.current.offsetWidth;
-        const textWidth = textRef.current.offsetWidth;
+      // Garante que os refs ainda estão atuais quando o timeout dispara
+      const currentContainer = containerRef.current;
+      const currentText = textRef.current;
+
+      if (currentContainer && currentText) {
+        const containerWidth = currentContainer.offsetWidth;
+        const textWidth = currentText.offsetWidth;
 
         if (textWidth > containerWidth) {
           setIsAnimating(true);
-          // Duration for the text to travel its own width plus the container width
-          // for the chosen keyframes (translateX(100%) to translateX(-100%))
-          const distanceToTravel = textWidth + containerWidth; 
-          const duration = distanceToTravel / animationSpeed;
-          setAnimationDuration(`${duration}s`);
+          // Verifica explicitamente se animationSpeed é positivo para evitar divisão por zero ou NaN
+          if (typeof animationSpeed === 'number' && animationSpeed > 0) {
+            const distanceToTravel = textWidth + containerWidth; 
+            const duration = distanceToTravel / animationSpeed;
+            setAnimationDuration(`${duration}s`);
+          } else {
+            // Fallback se animationSpeed não for positivo, efetivamente sem animação
+            // ou se animationSpeed for undefined/null (embora haja um default)
+            console.warn('MarqueeText: animationSpeed inválido ou zero. Animação desabilitada.', animationSpeed);
+            setIsAnimating(false); 
+            setAnimationDuration('0s');
+          }
         } else {
           setIsAnimating(false);
           setAnimationDuration('0s');
         }
       } else {
+        // Se os refs forem nulos (por exemplo, componente desmontado pouco antes do timeout), 
+        // garante que a animação pare.
         setIsAnimating(false);
         setAnimationDuration('0s');
       }
     };
 
-    // Check initially and on text change
-    // A slight delay can help ensure styles are applied and offsetWidth is accurate
     const timeoutId = setTimeout(checkOverflow, 50);
 
-    // Optional: Re-check on window resize if the container width is relative
     window.addEventListener('resize', checkOverflow);
     
     return () => {
