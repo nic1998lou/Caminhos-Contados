@@ -19,6 +19,7 @@ export interface POI {
   audioSrc: string;
   triggerRadiusMeters: number; // Distance in meters to trigger audio
   status: POIStatus;
+  _calculatedDistance?: number; // Temporarily stores calculated distance
 }
 
 export interface GeolocationData {

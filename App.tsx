@@ -15,10 +15,11 @@ import {
   SpeakerWaveIcon,
   MapPinIcon,
 } from './components/Icons';
+import MarqueeText from './components/MarqueeText'; // Importar o novo componente
 
 // New component for the visual structure of the Welcome Screen
 const WelcomeScreenVisuals: React.FC<{ isBackgroundDimmed?: boolean; onStartInteraction: () => void }> = ({ isBackgroundDimmed, onStartInteraction }) => {
-  const commonButtonClasses = `text-lg sm:text-xl font-bold uppercase tracking-wider rounded-full py-5 sm:py-6 px-16 sm:px-20 shadow-lg
+  const commonButtonClasses = `text-2xl sm:text-3xl font-bold uppercase tracking-wider rounded-full py-7 sm:py-9 px-24 sm:px-28 shadow-lg
                                transition-all duration-150 ease-in-out
                                transform hover:scale-105 active:scale-95
                                focus:outline-none focus:ring-4 focus:ring-green-300/60`;
@@ -107,7 +108,7 @@ const App: React.FC = () => {
       });
       setCurrentlyPlayingId(null);
     }
-  }, [currentlyPlayingId]); // currentlyPlayingId is a dependency
+  }, [currentlyPlayingId]); 
 
   const onAudioElementError = useCallback((event: Event) => {
     const target = event.target as HTMLAudioElement;
@@ -150,6 +151,7 @@ const App: React.FC = () => {
         if (currentPlayingPoiDetails && target.src === currentPlayingPoiDetails.audioSrc) {
             erroredPoiIdToUpdate = currentlyPlayingId;
         } else if (target.src && target.src !== "" && !target.src.startsWith("data:")) {
+            // Avoid logging errors for data URIs used for priming
             console.warn("[onAudioElementError] Audio error for unknown or unlinked src:", target.src);
         }
     }
@@ -173,25 +175,21 @@ const App: React.FC = () => {
           );
         setCurrentlyPlayingId(null);
     }
-  }, [pois, currentlyPlayingId]); // Depends on pois and currentlyPlayingId
+  }, [pois, currentlyPlayingId]); 
 
-  // Initialize POI audio player once
   useEffect(() => {
     if (!poiAudioRef.current) {
-      poiAudioRef.current = new Audio();
+      poiAudioRef.current = new Audio(); // Initial src is ""
       console.log("POI Audio Player (HTMLAudioElement) initialized.");
     }
   }, []);
 
-  // Attach/detach event listeners for POI audio
   useEffect(() => {
     const audioPlayerInstance = poiAudioRef.current;
-
     if (audioPlayerInstance) {
       audioPlayerInstance.addEventListener('ended', handleAudioEnded);
       audioPlayerInstance.addEventListener('error', onAudioElementError);
     }
-
     return () => {
       if (audioPlayerInstance) {
         audioPlayerInstance.removeEventListener('ended', handleAudioEnded);
@@ -248,7 +246,7 @@ const App: React.FC = () => {
         if (distance > poi.triggerRadiusMeters * 1.1) {
             console.log(`User moved out of range for currently playing POI: ${poi.id}. Stopping audio.`);
             poiAudioRef.current?.pause();
-            setCurrentlyPlayingId(null);
+            setCurrentlyPlayingId(null); // Will be handled more formally if a new POI starts
             newStatus = 'idle';
         }
       } else if (distance <= poi.triggerRadiusMeters) {
@@ -266,21 +264,20 @@ const App: React.FC = () => {
       } else {
         newStatus = (poi.status === 'played') ? 'played' : 'idle';
       }
-
-      if (poi.id !== currentlyPlayingId && poi.status !== 'played') {
+      
+      // Logic for proximity ring target
+      if (newStatus === 'approaching' || newStatus === 'idle') { // Consider idle POIs also for ring if they are close
         if (distance < minDistanceToRingTarget) {
-          minDistanceToRingTarget = distance;
-          closestApproachablePoiForRing = poi;
+            minDistanceToRingTarget = distance;
+            closestApproachablePoiForRing = poi;
         }
       }
-      return { ...poi, status: newStatus };
+      return { ...poi, status: newStatus, _calculatedDistance: distance }; // Store distance for ring logic
     });
 
-    setPois(tempPois);
-    setActivePoiForProximityRingId(closestApproachablePoiForRing?.id || null);
 
     if (closestApproachablePoiForRing) {
-      const distanceToRingPoi = calculateDistance(currentGeoLocation.coords, closestApproachablePoiForRing.coordinates);
+      const distanceToRingPoi = (tempPois.find(p => p.id === closestApproachablePoiForRing!.id) as POI & {_calculatedDistance: number})._calculatedDistance;
       const approachStartDistance = closestApproachablePoiForRing.triggerRadiusMeters * APPROACH_THRESHOLD_MULTIPLIER;
       const triggerDistance = closestApproachablePoiForRing.triggerRadiusMeters;
       let progress = 0.2;
@@ -291,56 +288,82 @@ const App: React.FC = () => {
           progress = 0.2 + (1 - ((distanceToRingPoi - triggerDistance) / (approachStartDistance - triggerDistance))) * 0.45;
       }
       setProximityRingScale(Math.max(0.2, Math.min(1.0, progress)));
+      setActivePoiForProximityRingId(closestApproachablePoiForRing.id);
     } else {
       setProximityRingScale(0.2);
+      setActivePoiForProximityRingId(null);
     }
 
+    // Play logic
     if (poiToPlayNext && poiAudioRef.current && poiToPlayNext.id !== currentlyPlayingId) {
       const audioPlayer = poiAudioRef.current;
+      const validAudioSrcPattern = /^(https?:\/\/|data:audio\/)/i;
 
-      if (!poiToPlayNext.audioSrc || typeof poiToPlayNext.audioSrc !== 'string' || poiToPlayNext.audioSrc.trim() === '') {
-        console.error(`[MainEffect] Invalid or empty audioSrc for POI ${poiToPlayNext.id}: "${poiToPlayNext.audioSrc}". Cannot play. Setting status to 'error'.`);
+      if (!poiToPlayNext.audioSrc || typeof poiToPlayNext.audioSrc !== 'string' || !validAudioSrcPattern.test(poiToPlayNext.audioSrc)) {
+        console.error(`[MainEffect] Invalid or empty audioSrc for POI ${poiToPlayNext.id}: "${poiToPlayNext.audioSrc}". Setting status to 'error'.`);
         setPois(prevPois =>
           prevPois.map(p =>
-            p.id === poiToPlayNext!.id ? { ...p, status: 'error' as POIStatus } : p
-          )
+            p.id === poiToPlayNext!.id ? { ...p, status: 'error', _calculatedDistance: p._calculatedDistance } : p
+          ).map(({ _calculatedDistance, ...rest }) => rest) as POI[]
         );
       } else {
         console.log(`[MainEffect] Preparing to play POI: ${poiToPlayNext.id}, src: ${poiToPlayNext.audioSrc}`);
-        console.log('[MainEffect] DEBUG: poiToPlayNext antes de tentar tocar:', JSON.stringify(poiToPlayNext, null, 2));
-        console.log('[MainEffect] DEBUG: poiToPlayNext.audioSrc:', poiToPlayNext.audioSrc);
-
-        audioPlayer.pause();
-        audioPlayer.src = poiToPlayNext.audioSrc;
-        console.log('[MainEffect] DEBUG: audioPlayer.src ANTES de load():', audioPlayer.src);
-
         const idOfPoiToPlay = poiToPlayNext.id;
         const srcOfPoiToPlay = poiToPlayNext.audioSrc;
+        const oldPlayingId = currentlyPlayingId; // Capture the POI being interrupted
 
-        console.log(`[MainEffect] Attempting to load and play POI: ${idOfPoiToPlay}, src: ${srcOfPoiToPlay}`);
-        audioPlayer.load();
+        // Optimistically set current playing ID
+        setCurrentlyPlayingId(idOfPoiToPlay);
+
+        audioPlayer.pause();
+        audioPlayer.src = srcOfPoiToPlay;
+        audioPlayer.load(); // Explicitly load the new source
 
         audioPlayer.play().then(() => {
-          if (audioPlayer.src === srcOfPoiToPlay && currentlyPlayingId !== idOfPoiToPlay) {
-              console.log(`[MainEffect] Successfully STARTED playing POI: ${idOfPoiToPlay}`);
-              setCurrentlyPlayingId(idOfPoiToPlay);
-              setPois(prev => prev.map(p => p.id === idOfPoiToPlay ? {...p, status: 'playing'} : p));
+          if (audioPlayer.src === srcOfPoiToPlay && currentlyPlayingId === idOfPoiToPlay) { // Double check if still the intended POI
+            console.log(`[MainEffect] Successfully STARTED playing POI: ${idOfPoiToPlay}`);
+            setPois(prev => prev.map(p => {
+                if (p.id === idOfPoiToPlay) return {...p, status: 'playing'};
+                if (p.id === oldPlayingId) return {...p, status: 'played'}; // Mark interrupted as played
+                return p;
+            }).map(({ _calculatedDistance, ...rest }) => rest) as POI[]);
           } else {
-              console.warn(`[MainEffect] Audio source or playing state changed before playback confirmation for ${idOfPoiToPlay}. Current src: ${audioPlayer.src}, intended src: ${srcOfPoiToPlay}, currentlyPlayingId: ${currentlyPlayingId}`);
-              if (audioPlayer.src === srcOfPoiToPlay && currentlyPlayingId === idOfPoiToPlay) {
-                 setPois(prev => prev.map(p => p.id === idOfPoiToPlay ? {...p, status: 'playing'} : p));
-              }
+             console.warn(`[MainEffect] Audio source or playing state changed before playback confirmation for ${idOfPoiToPlay}. Current src: ${audioPlayer.src}, intended src: ${srcOfPoiToPlay}, currentlyPlayingId: ${currentlyPlayingId}`);
+             // If it's still the intended one, ensure status is playing.
+             if (currentlyPlayingId === idOfPoiToPlay) {
+                 setPois(prev => prev.map(p => p.id === idOfPoiToPlay ? {...p, status: 'playing'} : p).map(({ _calculatedDistance, ...rest }) => rest) as POI[]);
+             } else if (oldPlayingId && currentlyPlayingId !== oldPlayingId) { // If a new POI took over and it wasn't us
+                 setPois(prev => prev.map(p => p.id === oldPlayingId ? {...p, status: 'played'} : p).map(({ _calculatedDistance, ...rest }) => rest) as POI[]);
+             }
           }
         }).catch(e => {
           console.error(`[MainEffect] Error during .play() promise for POI ${idOfPoiToPlay} (src: ${srcOfPoiToPlay}):`, e);
-          setPois(prev => prev.map(p => p.id === idOfPoiToPlay ? {...p, status: 'error'} : p));
+          setPois(prev => prev.map(p => {
+              if (p.id === idOfPoiToPlay) return {...p, status: 'error'};
+              // if (p.id === oldPlayingId) return {...p, status: 'played'}; // Potentially mark interrupted as played even on new one's error
+              return p;
+          }).map(({ _calculatedDistance, ...rest }) => rest) as POI[]);
           if (currentlyPlayingId === idOfPoiToPlay) {
             setCurrentlyPlayingId(null);
           }
         });
       }
+    } else if (currentlyPlayingId && !poiToPlayNext) { // If a POI was playing, but no new one is close enough
+         // This logic is partially handled by the distance check inside the map
+         // Just ensure other POIs are not in 'playing' state
+         setPois(prev => prev.map(p => {
+            if (p.id === currentlyPlayingId && p.status !== 'error') return {...p, status: 'playing'}; // Keep playing if in range
+            if (p.id !== currentlyPlayingId && p.status === 'playing') return {...p, status: 'idle'}; // Correct any other 'playing' POI
+            return p;
+         }).map(({ _calculatedDistance, ...rest }) => rest) as POI[]);
+    } else {
+         // No new POI to play, and nothing was playing, or the one playing stopped due to distance
+         // Just apply the statuses calculated based on distance
+         setPois(tempPois.map(({ _calculatedDistance, ...rest }) => rest) as POI[]);
     }
-  }, [currentGeoLocation, isTracking, currentlyPlayingId, showWelcomeScreen, pois, handleAudioEnded, onAudioElementError]); // Added onAudioElementError to dependencies
+
+  }, [currentGeoLocation, isTracking, currentlyPlayingId, showWelcomeScreen, pois]); 
+
 
   const handleStartTrackingOnly = useCallback(() => {
     startTracking();
@@ -353,34 +376,16 @@ const App: React.FC = () => {
   const handleAgreeToSafetyDisclaimer = () => {
     setShowSafetyDisclaimerModal(false);
     setShowWelcomeScreen(false);
-    handleStartTrackingOnly();
+    handleStartTrackingOnly(); // Starts geolocation
+
+    // Attempt to play background music. This interaction should also "prime" the audio context.
     if (backgroundAudioRef.current && backgroundAudioRef.current.paused) {
-      console.log("Attempting to play background music.");
+      console.log("Attempting to play background music (this will also prime the audio context).");
       backgroundAudioRef.current.play().catch(e => console.error("Error playing background music:", e));
     }
-    if (poiAudioRef.current && poiAudioRef.current.paused) {
-      console.log("Attempting to prime POI audio player with a short silent play.");
-      const originalSrc = poiAudioRef.current.src;
-      const originalVolume = poiAudioRef.current.volume;
-      poiAudioRef.current.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
-      poiAudioRef.current.volume = 0;
-      poiAudioRef.current.play()
-        .then(() => {
-          console.log("POI audio player primed successfully.");
-          poiAudioRef.current?.pause();
-          if(poiAudioRef.current) {
-            poiAudioRef.current.src = originalSrc;
-            poiAudioRef.current.volume = originalVolume;
-          }
-        })
-        .catch(err => {
-          console.warn("Could not prime POI audio player:", err);
-          if(poiAudioRef.current) {
-             poiAudioRef.current.src = originalSrc;
-             poiAudioRef.current.volume = originalVolume;
-          }
-        });
-    }
+    // The main POI audio (poiAudioRef.current) will be played by the useEffect 
+    // when a POI is in range, after its src is correctly set.
+    // No explicit priming needed for poiAudioRef here as it was a source of issues.
   };
 
   const handleDisagreeToSafetyDisclaimer = () => {
@@ -477,6 +482,16 @@ const App: React.FC = () => {
 
   const currentlyPlayingPoiDetails = pois.find(p => p.id === currentlyPlayingId);
   const approachingPoiForRingDetails = pois.find(p => p.id === activePoiForProximityRingId);
+  
+  // Calculate opacity for the inner ring
+  // Scale goes from 0.2 to 1.0. Opacity from 0.8 to 1.0.
+  // Formula: baseOpacity + ( (scale - minScale) / (maxScale - minScale) ) * (maxOpacity - baseOpacity)
+  // 0.8 + ( (proximityRingScale - 0.2) / (1.0 - 0.2) ) * (1.0 - 0.8)
+  // 0.8 + ( (proximityRingScale - 0.2) / 0.8 ) * 0.2
+  // 0.8 + proximityRingScale/4 - 0.05
+  // 0.75 + proximityRingScale * 0.25
+  const innerRingOpacity = 0.75 + (proximityRingScale * 0.25);
+
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -488,11 +503,11 @@ const App: React.FC = () => {
         }}
       >
         {currentlyPlayingPoiDetails && (
-          <div className="absolute top-4 left-4 bg-white text-brandGreen p-4 rounded-lg shadow-lg max-w-[calc(100%-2rem-32px)]">
+          <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-white text-brandGreen px-6 py-3 rounded-full shadow-lg max-w-[calc(100%-3rem)] sm:max-w-md md:max-w-lg z-10">
             <div className="flex items-center">
               <SpeakerWaveIcon className="h-7 w-7 mr-2 text-brandGreen flex-shrink-0" />
-              <div>
-                <p className="text-lg font-semibold truncate">{currentlyPlayingPoiDetails.name}</p>
+              <div className="flex-grow overflow-hidden"> {/* Container for MarqueeText */}
+                <MarqueeText text={currentlyPlayingPoiDetails.name} className="text-lg font-semibold" animationSpeed={30}/>
                 <p className="text-base uppercase">STATUS: REPRODUZINDO</p>
               </div>
             </div>
@@ -512,6 +527,7 @@ const App: React.FC = () => {
               height: `${proximityRingScale * 100}%`,
               minWidth: '20%',
               minHeight: '20%',
+              opacity: innerRingOpacity, // Apply calculated opacity
             }}
           ></div>
         </div>
@@ -535,8 +551,8 @@ const App: React.FC = () => {
                 <div className="bg-brandGreen p-3 sm:p-4 rounded-lg mr-3 sm:mr-4 flex-shrink-0">
                   <MapPinIcon className="h-7 w-7 sm:h-8 sm:h-8 text-white" />
                 </div>
-                <div className="flex-grow overflow-hidden">
-                  <p className="text-base sm:text-lg font-semibold text-brandGreen uppercase truncate">{poi.name}</p>
+                <div className="flex-grow overflow-hidden"> {/* Container for MarqueeText */}
+                  <MarqueeText text={poi.name} className="text-base sm:text-lg font-semibold text-brandGreen uppercase" animationSpeed={30}/>
                   <p className="text-sm sm:text-base text-gray-600 uppercase">STATUS: {statusText}</p>
                 </div>
               </div>
