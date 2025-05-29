@@ -14,7 +14,7 @@ import {
   ExclamationTriangleIcon,
   SpeakerWaveIcon,
   MapPinIcon,
-  ChevronLeftIcon, // Importar o novo ícone
+  ChevronLeftIcon,
 } from './components/Icons';
 import MarqueeText from './components/MarqueeText';
 
@@ -40,7 +40,7 @@ const WelcomeScreenVisuals: React.FC<{ isBackgroundDimmed?: boolean; onStartInte
         <img
           src="./assets/logo.png"
           alt="Logo do Aplicativo A Pé e a Letra"
-          className="w-44 h-44 sm:w-52 sm:h-52 md:w-60 md:h-60 object-contain"
+          className="w-48 h-48 sm:w-56 sm:h-56 md:w-64 md:h-64 object-contain"
         />
       </div>
       <div className="flex-grow flex flex-col items-center justify-start pt-8 sm:pt-10 px-6 text-center">
@@ -429,15 +429,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Botão Voltar - Adicionado aqui */}
-      <button
-          onClick={handleGoToWelcomeScreen}
-          className="absolute top-4 left-4 z-20 p-2 bg-brandGreen rounded-md shadow-md hover:bg-brandGreenDarker transition-colors"
-          aria-label="Voltar para a tela inicial"
-        >
-          <ChevronLeftIcon className="h-6 w-6 text-white" />
-      </button>
-
+      {/* Botão Voltar foi removido daqui */}
       <div
         className="bg-brandGreen w-full flex-grow-0 flex-shrink-0 basis-auto flex flex-col items-center text-white pt-6 pb-10 sm:pb-16 md:pb-20 relative"
         style={{
@@ -502,4 +494,3 @@ const App: React.FC = () => {
   );
 };
 export default App;
-    

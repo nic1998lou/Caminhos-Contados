@@ -1,6 +1,4 @@
 {
-  "name": "A Pé e a Letra",
-  "description": "Um aplicativo de guia turístico de áudio interativo que reproduz descrições de áudio para pontos de interesse (POIs) conforme o usuário se aproxima deles, com base em sua localização GPS atual. Antigo Caminhos Contados.",
-  "requestFramePermissions": [],
-  "prompt": ""
+  "name": "Empty",
+  "description": "An empty app"
 }
