@@ -1,14 +1,14 @@
 {
-      "name": "caminhos-contados",
+      "name": "a-pe-e-a-letra",
       "version": "1.0.0",
-      "description": "Um aplicativo de guia turístico de áudio interativo.",
+      "description": "A Pé e a Letra: Um aplicativo de guia turístico de áudio interativo.",
       "main": "index.tsx",
       "scripts": {
-        "build": "esbuild index.tsx --bundle --outfile=dist/main.js --format=esm --jsx=automatic --define:process.env.NODE_ENV='\"production\"' --external:react --external:react-dom/client --external:react/jsx-runtime",
+        "build": "esbuild index.tsx --bundle --outfile=dist/main.js --format=esm --jsx=automatic --define:process.env.NODE_ENV='\"production\"'",
         "start": "echo \"Abra o index.html no seu navegador para desenvolvimento local ou use um servidor de desenvolvimento simples.\""
       },
       "keywords": ["react", "typescript", "geolocation", "audio", "guide"],
-      "author": "Seu Nome",
+      "author": "Nicolas Louzada",
       "license": "ISC",
       "devDependencies": {
         "esbuild": "^0.20.0"

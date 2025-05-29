@@ -3,31 +3,44 @@
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Caminhos Contados</title>
+      <title>A Pé e a Letra</title>
       <script src="https://cdn.tailwindcss.com"></script>
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+      <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
       <script>
         tailwind.config = {
           theme: {
             extend: {
               colors: {
+                brandGreen: '#006837',
+                brandGreenDarker: '#00572d',
+                brandGreenDarkest: '#004624',
+                lightTeal: '#6EE7B7', // Added for proximity ring
+              },
+              fontFamily: {
+                'sans': ['Poppins', 'sans-serif'], // Poppins is now the default sans font
+                'poppins': ['Poppins', 'sans-serif'], // Specific Poppins utility
               }
             }
           }
         }
       </script>
       <style>
-        body {
-          font-family: 'Inter', sans-serif;
-          overscroll-behavior-y: none;
-        }
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         html, body, #root {
           height: 100%;
           margin: 0;
           padding: 0;
+          overscroll-behavior-y: none; /* Prevent pull-to-refresh type behaviors */
         }
+        body {
+          font-family: 'Poppins', sans-serif; /* Poppins is now the default body font */
+        }
+        /* Ensure the root div and direct child also take full height */
         #root > div {
             min-height: 100%;
+            display: flex; /* Often useful for full-height app layouts */
+            flex-direction: column; /* Standard column layout */
         }
       </style>
     <script type="importmap">
@@ -40,7 +53,7 @@
     }
     </script>
     </head>
-    <body class="bg-slate-800">
+    <body class="bg-white"> {/* Default body bg, specific screens will override */}
       <noscript>You need to enable JavaScript to run this app.</noscript>
       <div id="root"></div>
       <!-- Carrega o script compilado -->
